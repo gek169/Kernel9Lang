@@ -89,7 +89,7 @@ class k9_bus{
 		template <typename T>
 		void fromp_(T* a){
 			for(umax i = 0; i < sizeof(T); i++){
-				write( *((BYTE*)a), i );
+				write( *(((BYTE*)a)+i), i );
 			}
 		}
 		virtual ~k9_bus(){}
@@ -107,6 +107,14 @@ class k9_ptrmem : public k9_bus<size>{
 		}
 	private:
 		BYTE* data;
+};
+
+//The full address map.
+//TODO
+template <umax size>
+class k9_addrmap : public k9_bus<size> {
+	public:
+	private:
 };
 
 //MY WORDS ARE BACKED WITH... real memory...
@@ -131,7 +139,7 @@ void myfunc(){
 	k9_realmem<11> some_memory;
 	some_memory.fill(0);
 	some_memory.at<3>(39).from_<u32>(0x7f3f3f7f);
-	std::cout << "Value at the 39th state3, byte 0 is..." << 
-		(uint8_t)some_memory.at<3>(39).read(0) << 
+	std::cout << "Value at the 39th state3, byte 1 is..." << 
+		(u32)some_memory.at<3>(39).read(1) << 
 	std::endl;
 }
