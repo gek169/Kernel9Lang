@@ -13,9 +13,9 @@
 
 
 //Implementation variables.
-#define K9BLOCKBYTES ((ssize_t)1<<19)
 #define K9BLOCKLEVEL	20
-#define K9BLOCKMASK (K9BLOCKBYTES1)
+#define K9BLOCKBYTES ((size_t)1<<(K9BLOCKLEVEL - 1))
+#define K9BLOCKMASK (K9BLOCKBYTES - 1)
 
 #define K9_FAST_FLOAT_MATH 1
 #define K9_USE_FLOAT 1
@@ -77,106 +77,75 @@ constexpr umax __k9_log2_floor(umax n)
 constexpr umax __k9_max_p2n_inside(umax n){
 	return (umax)1<<__k9_log2_floor(n);
 }
-//Kernel9 internal common bus functions.
-//Required for a K9 bus.
 
-#define K9_BUS_METHODS()\
-		template <typename T>\
-		inline void top_(T *a){\
-			constexpr umax s = __k9_max_p2n_inside(sizeof(T));\
-			static_assert( s == sizeof(T) , "KERNEL9 ERROR: BAD READ SIZE" );\
-			__read(    (BYTE*)a, __k9_max_p2n_inside(sizeof(T)) );\
-			return;\
-		}\
-		template <typename T>\
-		inline void fromp_(T* a){\
-			constexpr umax s = __k9_max_p2n_inside(sizeof(T));\
-			static_assert( s == sizeof(T), "KERNEL9 ERROR: BAD WRITE SIZE"  );\
-			__write(  (BYTE*)a, __k9_max_p2n_inside(sizeof(T)) );\
-			return;\
-		}\
-		template <typename T>\
-		inline void from_(T a){fromp_<T>(&a);}\
-		template <typename T>\
-		inline T to_(){T a; top_(&a); return a;}\
+//The Kernel9 basic bus interface
+//Contains an amount of internal memory which is used in different ways depending on mode.
+//Four bits are used, as "flags"
+//PLAIN MODE
+//if the plain flag is set, is_function is ignored.
+//We either store memory directly,  or a pointer to memory owned by other buses, depending on is_owning (bit 1)
+//if the read-only flag is set, writes are ignored.
+//if the "is_wrapped" flag is set, attempts to read beyond the bounds of
+//the allocated memory will loop around to the beginning.
+//FUNCTION MODE
+//Only available if is_plain is 0.
+//
+constexpr bool is_wrapped(umax mode){return (mode & 16) == 1;}
+constexpr bool is_read_only(umax mode){return (mode & 8) == 1;}
+constexpr bool is_function(umax mode){return (mode & 4) == 1;}
+constexpr bool is_plain(umax mode){return (mode & 2) == 1; }
+constexpr bool is_owning(umax mode){return (mode & 1) == 1;}
 
-#define 
-
-//Contiguous memory declarations.
-#define K9_INTERN_CONTIG_RW_DECL()\
-inline BYTE* __getdata() {return data;}\
-	inline void	__read(BYTE* dest, umax p2b){\
-		memcpy(dest, data, p2b & getbytemask(size));\
-	}\
-	inline void __write(BYTE* src, umax p2b){\
-		memcpy(data, src, p2b & getbytemask(size));\
-	}\
-	template <typename T> /*Copy values.*/\
-	inline void copy(T& other){other.__read(data, size);}\
-	template<umax lev> \
-	inline __k9_intern_ptrmem<lev> at(umax index){\
-		static_assert(lev <= size);\
-		static_assert(lev > 0);\
-		__k9_intern_ptrmem<lev> k(data + (((index) & getmask(lev, size))<<(lev-1)) );\
-		return k;\
-	}
-
-template <umax size> 
-class __k9_intern_ptrmem{
+template <umax StageLevel, umax mode>
+class Kernel9_Bus{
+	static_assert(StageLevel > 0);
+	//static_assert(mode == 0 || mode == 1 || mode == 2 || mode == 3);
 	public:
-		__k9_intern_ptrmem<size>(BYTE* p) : data(p) {}
-		K9_BUS_METHODS()
-		K9_INTERN_CONTIG_RW_DECL()
-		~__k9_intern_ptrmem(){}
-	protected:
-	private:
-		BYTE* data;
-};
-//MY WORDS ARE BACKED WITH... real memory...
-template <umax size> class k9_realmem{
-	public:
-		K9_BUS_METHODS()
-		K9_INTERN_CONTIG_RW_DECL()
-		operator __k9_intern_ptrmem<size>() {return __k9_intern_ptrmem<size>(data);}
-		~k9_realmem<size>(){}
-		k9_realmem<size>() =default;
-	private:
-		BYTE data[(umax)1<<(size-1)];
-};
-
-//constant bus.
-template <umax size, typename Q>
-class k9_constbus{
-	public:
-		k9_constbus<size,Q>(Q val) : __constant(val) {}
-		static_assert( __k9_max_p2n_inside(sizeof(Q)) == sizeof(Q)  );
-		K9_BUS_METHODS()
-		inline void __read(BYTE* dest, umax p2b){
-			for(umax i = 0; i < p2b/sizeof(Q); i ++)
-				memcpy(
-						dest + i * sizeof(Q), 
-						&__constant, 
-						p2b & getbytemask(size)
-				);
+		/*
+			static constexpr umax is_read_only = mode & 8; //Ignore writes? This is propagated.
+			static constexpr umax is_function = mode & 4; //When writes occur, do we execute a function?
+			static constexpr umax is_plain = mode & 2; //Boring?
+			static constexpr umax is_owning = mode & 1; //Do we own our resorces?
+		*/
+		Kernel9_Bus<StageLevel, mode>(void* dads_data){
+			//TODO: Implement
 		}
-		inline void __write(BYTE* dest, umax p2b){(void)dest;(void)p2b;} //Do nothing.
+		template <typename T> void copy_bus(T other){
+			//TODO
+		}
+		void __internal_read(BYTE* 	dest, umax sz, umax where){} //TODO
+		void __internal_write(BYTE* src, umax sz, umax where){ if(is_read_only) return;
+		
+		} //TODO
+		//TODO: Implement correct .at<> functionality. That'll be fun...
+		//template < (some calculation for stagelevel), (some calculation for mode)> 
+		//Kernel9_Bus<,> at(){}
+		//
 	private:
-		const Q __constant;
+
+		BYTE mem[
+			(is_plain(mode))?
+			(//PLAIN BUSES- Hold memory only.
+				is_owning(mode)? //Owning Memory
+				(
+				   (StageLevel <= K9BLOCKLEVEL)?
+					((umax)1<<(StageLevel-1)): //Small buffer optimization
+					(((umax)1<<(StageLevel-1))/K9BLOCKBYTES) * sizeof(void*) //Block allocation
+				)
+				:
+				(					//Pointer to memory
+					(StageLevel <= K9BLOCKLEVEL)?
+					sizeof(void*): //Points to less than or equal to a single block
+					((((umax)1<<(StageLevel-1))/K9BLOCKBYTES) * sizeof(void*)) //Points to the same number of blocks as if we owned it.
+				)	
+			):(
+
+				
+			)
+		];
+
+
 };
-
-
-//f32 myfunc(f32 a, f32 b) {a++; return a-b; }
-//u32 myfunc2(u32 a, i32 b){ b = 0; i32 q; a++;    q = 7;     a+=q;     return a%b; }
-static k9_realmem<10> mymem;
-static k9_constbus<10, u32> favorite_constbus(30);
-typedef struct oddstruct {char data[3];} oddstruct;
-
-void myfunc(){
-	mymem.at<3>(10).from_<u32>(0x7f3f3f7f);
-	k9_realmem<20> othermem;
-	othermem.copy(mymem);
-	printf("getmask of 3,1 is %zu" ,getmask(3,4));
-	std::cout << "\n it's now..." << othermem.at<3>(10).to_<u32>()  << std::endl;
-}
+static_assert(sizeof(Kernel9_Bus<5, 5>) == (1<<(5-1)));
 
 #endif
