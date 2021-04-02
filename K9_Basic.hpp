@@ -131,9 +131,10 @@ class State{
 		}
 		template <typename T>
 		inline T& g(umax ind){
-			constexpr umax p2n = __k9_ceil_p2n(sizeof(T));
-			static_assert(p2n <= getwidth(StageLevel), "Location not large enough to store...");
-			return *((T*)(mem + byteoff(ind, __k9_log2_ceil(sizeof(T)), StageLevel)));
+			constexpr umax p2n = __k9_log2_ceil(sizeof(T))+1;
+			static_assert(p2n <= (StageLevel), "Location not large enough to store...");
+			printf("p2n is %zu\n", p2n);
+			return *((T*)(mem + byteoff(ind, p2n, StageLevel)));
 		}
 	private:
 		//This memory is always aligned.
@@ -147,5 +148,60 @@ class State{
 static_assert(sizeof(State<5>) == (umax)1<<(5-1));
 static_assert(sizeof(State<12>) == (umax)1<<(12-1));
 
+//typedefs
+#define K9_INTERNAL_DEFSTATE(n) typedef State<n> state##n;
+
+K9_INTERNAL_DEFSTATE(1);
+K9_INTERNAL_DEFSTATE(2);
+K9_INTERNAL_DEFSTATE(3);
+K9_INTERNAL_DEFSTATE(4);
+K9_INTERNAL_DEFSTATE(5);
+K9_INTERNAL_DEFSTATE(6);
+K9_INTERNAL_DEFSTATE(7);
+K9_INTERNAL_DEFSTATE(8);
+K9_INTERNAL_DEFSTATE(9);
+K9_INTERNAL_DEFSTATE(10);
+K9_INTERNAL_DEFSTATE(11); //1 KB
+K9_INTERNAL_DEFSTATE(12);
+K9_INTERNAL_DEFSTATE(13);
+K9_INTERNAL_DEFSTATE(14);
+K9_INTERNAL_DEFSTATE(15);
+K9_INTERNAL_DEFSTATE(16);
+#if K9_IMPLEMENTATION_BITS > 16
+K9_INTERNAL_DEFSTATE(17); //64M
+K9_INTERNAL_DEFSTATE(18); //128M
+K9_INTERNAL_DEFSTATE(19); //256M
+K9_INTERNAL_DEFSTATE(20); //512M
+K9_INTERNAL_DEFSTATE(21); //1MB
+K9_INTERNAL_DEFSTATE(22);
+K9_INTERNAL_DEFSTATE(23);
+K9_INTERNAL_DEFSTATE(24);
+K9_INTERNAL_DEFSTATE(25);
+K9_INTERNAL_DEFSTATE(26);
+K9_INTERNAL_DEFSTATE(27);
+K9_INTERNAL_DEFSTATE(28);
+K9_INTERNAL_DEFSTATE(29);
+K9_INTERNAL_DEFSTATE(30);
+K9_INTERNAL_DEFSTATE(31); //1GB
+K9_INTERNAL_DEFSTATE(32);
+#if K9_IMPLEMENTATION_BITS > 32
+K9_INTERNAL_DEFSTATE(33);
+K9_INTERNAL_DEFSTATE(34);
+K9_INTERNAL_DEFSTATE(35);
+K9_INTERNAL_DEFSTATE(36);
+K9_INTERNAL_DEFSTATE(37);
+K9_INTERNAL_DEFSTATE(38);
+K9_INTERNAL_DEFSTATE(39);
+K9_INTERNAL_DEFSTATE(40);
+K9_INTERNAL_DEFSTATE(41);
+K9_INTERNAL_DEFSTATE(42);
+K9_INTERNAL_DEFSTATE(43);
+K9_INTERNAL_DEFSTATE(44);
+K9_INTERNAL_DEFSTATE(45);
+K9_INTERNAL_DEFSTATE(46);
+K9_INTERNAL_DEFSTATE(47);
+K9_INTERNAL_DEFSTATE(48);
+#endif
+#endif
 
 #endif

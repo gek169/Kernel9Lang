@@ -1,8 +1,9 @@
-
 #include "K9.hpp"
 #include <iostream>
+
+//Calling Kernel9 code from C++.
 int main(){
-	State<20> bus;
-	bus.g<u32>(1) = 3;
-	myfunc(bus.gs<5>(0));
+	state20 bus;
+	bus.gs(5,0).g(f32, 0) = 47.0f;
+	myfunc(bus.gs(5,0));
 }
