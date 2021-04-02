@@ -20,7 +20,7 @@
 #define K9_USE_LONG_DOUBLE 1
 #define K9_IMPLEMENTATION_BITS 64
 #define K9_MAX_ALIGNMENT 32
-//Implementation default 
+//Implementation block size- How much memory are you willing to store on the stack?
 #define K9BLOCKLEVEL	18
 #define K9BLOCKBYTES	getwidth(K9BLOCKLEVEL)
 
@@ -168,7 +168,6 @@ class PlainBus{
 			return;
 		}
 		K9_NORMAL_BUS_ASSIGN_BEHAVIOR(StageLevel)
-		BYTE* __internal_get_mem(){return mem;}
 	private:
 		alignas(
 			(getwidth(StageLevel)>K9_MAX_ALIGNMENT)?
@@ -178,14 +177,36 @@ class PlainBus{
 };
 
 
+
+template <typename T1>
+class EBus{
+	public:
+		EBus<T1>(T1& _u): upper(_u){};
+		template <typename T> inline T ld(umax index){
+			K9_BUS_POW2_CHECK()
+			return upper.template ld<T>(index);
+		}
+		template <typename T> inline void st(T e, umax index){
+			K9_BUS_POW2_CHECK()
+			upper.template st<T>(e, index);
+			return;
+		}
+		template <typename T> inline void operator=(T& other){upper = other;}
+	private:
+		T1& upper;
+};
+
+template <typename T1>
+inline EBus<T1> echo(T1& a){return EBus<T1>(a);}
+
 //Combination bus.
 //Allows you to pass two buses.
 //The resulting address space is getwidth(StageLevel)
-//T1 and T2 should logically be buses of 
+//T1 and T2 should logically be buses of StageLevel-1, but this is not required.
 template <umax StageLevel, typename T1, typename T2>
 class DBus{
 	public:
-		DBus<StageLevel, T1, T2>(T1& _u, T2& _l): upper(_u), lower(_l){};
+		DBus<StageLevel, T1, T2>(T1 _u, T2 _l): upper(_u), lower(_l){};
 		template <typename T> inline T ld(umax index){
 			K9_BUS_POW2_CHECK()
 			if(getwidth(StageLevel) & sizeof(T)){
@@ -204,27 +225,31 @@ class DBus{
 		}
 		K9_NORMAL_BUS_ASSIGN_BEHAVIOR(StageLevel);
 	private:
-		T1& upper;
-		T2& lower;
+		T1 upper;
+		T2 lower;
 };
 
 template <umax StageLevel, typename T1, typename T2>
-DBus<StageLevel, T1, T2> AddBus(T1& a, T2& b){
-	return DBus<StageLevel, T1, T2>(a, b);
+inline DBus<StageLevel, EBus<T1>, EBus<T2>> MergeBus(T1& a, T2& b){
+	return DBus<StageLevel, EBus<T1>, EBus<T2>>( echo(a), echo(b) );
+}
+
+template <umax StageLevel, typename T1, typename T2>
+inline DBus<StageLevel, T1, T2> AddBus(T1 a, T2 b){
+	return DBus<StageLevel, T1, T2>( a, b );
 }
 static_assert(sizeof(PlainBus<5>) == (1<<(5-1)));
-static_assert(sizeof(PlainBus<1>) == (1<<(1-1)));
+static_assert(sizeof(PlainBus<1>) == 1);
 static_assert(sizeof(PlainBus<7>) == (1<<(7-1)));
 static_assert(sizeof(PlainBus<21>) == (1<<(21-1)));
-PlainBus<23> mystate;
+PlainBus<8> mystate;
 
 void myfunc(){
 	PlainBus<5> state1;
 	PlainBus<5> state2;
 	//Template type deduction at its finest!
-	AddBus<6>(state2, mystate).st((u32)0x1b, 0);
-
-	
+	MergeBus<6>(state2, mystate).st((u32)0x1b, 0);
+	AddBus<6>(state2, mystate).st((u32)0x00, 0);
 	mystate.st((u32)0xfff, 		1);
 	mystate.st((u32)0xe, 		2);
 	mystate.st((u32)0xaa, 		3);
