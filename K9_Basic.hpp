@@ -124,8 +124,8 @@ template <umax StageLevel> struct __k9_internal_mblock {BYTE mem[getwidth(StageL
 #define K9_BUS_POW2_CHECK()\
 			constexpr umax p2 = __k9_max_p2n_inside(sizeof(T));\
 			constexpr umax p1 = __k9_log2_floor(sizeof(T)) + 1;\
-			static_assert( p2  			== sizeof(T),"KERNEL9: MUST ST POWER OF TWO BYTES");\
-			static_assert( getwidth(p1)	== sizeof(T),"KERNEL9: MUST ST POWER OF TWO BYTES");\
+			static_assert( p2  			== sizeof(T),"KERNEL9 ERROR: LD AND ST MUST TAKE POWER OF TWO BYTES");\
+			static_assert( getwidth(p1)	== sizeof(T),"KERNEL9 ERROR: LD AND ST MUST TAKE POWER OF TWO BYTES");\
 
 template <umax StageLevel>
 class PlainBus{
@@ -196,8 +196,8 @@ class EBus{
 		T1& upper;
 };
 
-template <typename T1>
-inline EBus<T1> echo(T1& a){return EBus<T1>(a);}
+
+
 
 //Combination bus.
 //Allows you to pass two buses.
@@ -229,36 +229,29 @@ class DBus{
 		T2 lower;
 };
 
-template <umax StageLevel, typename T1, typename T2>
-inline DBus<StageLevel, EBus<T1>, EBus<T2>> MergeBus(T1& a, T2& b){
-	return DBus<StageLevel, EBus<T1>, EBus<T2>>( echo(a), echo(b) );
-}
+//Echo Operation.
+template <typename T1>
+inline EBus<T1> echo(T1& a){return EBus<T1>(a);}
 
+
+//Add Buses to create a new bus
 template <umax StageLevel, typename T1, typename T2>
 inline DBus<StageLevel, T1, T2> AddBus(T1 a, T2 b){
 	return DBus<StageLevel, T1, T2>( a, b );
 }
+
+//Merge Buses.
+template <umax StageLevel, typename T1, typename T2>
+inline DBus<StageLevel, EBus<T1>, EBus<T2>> MergeBus(T1& a, T2& b){
+	return AddBus<StageLevel, EBus<T1>, EBus<T2>>( echo(a), echo(b) );
+}
+
+
 static_assert(sizeof(PlainBus<5>) == (1<<(5-1)));
 static_assert(sizeof(PlainBus<1>) == 1);
 static_assert(sizeof(PlainBus<7>) == (1<<(7-1)));
 static_assert(sizeof(PlainBus<21>) == (1<<(21-1)));
-PlainBus<8> mystate;
 
-void myfunc(){
-	PlainBus<5> state1;
-	PlainBus<5> state2;
-	//Template type deduction at its finest!
-	MergeBus<6>(state2, mystate).st((u32)0x1b, 0);
-	AddBus<6>(state2, mystate).st((u32)0x00, 0);
-	mystate.st((u32)0xfff, 		1);
-	mystate.st((u32)0xe, 		2);
-	mystate.st((u32)0xaa, 		3);
-	puts("reached this spot.");
-	state1 = mystate;
-	puts("reached this other spot.");
-	mystate = state1;
-	for(umax i = 0; i < (umax)1<<(8-1); i++)
-		printf("value is %x\n", mystate.ld<u32>(i));
-}
+
 
 #endif
