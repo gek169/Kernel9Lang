@@ -3,6 +3,6 @@
 #include <iostream>
 int main(){
 	State<20> bus;
-	bus.a<6>(1) = 3;
-	myfunc(bus.a<5>(0));
+	bus.g<u32>(1) = 3;
+	myfunc(bus.gs<5>(0));
 }

@@ -101,14 +101,14 @@ constexpr umax __k9_log2_floor(umax n)
   return ( (n<2) ? 0 : 1+log2(n/2));
 }
 
-constexpr umax __k9_max_p2n_inside(umax n){
+constexpr umax __k9_ceil_p2n(umax n){
+	return (umax)1<<__k9_log2_ceil(n);
+}
+
+constexpr umax __k9_floor_p2n(umax n){
 	return (umax)1<<__k9_log2_floor(n);
 }
 
-//The 
-
-//The Kernel9 state machine and Basic "Sized Bus"
-//This is a 100% memory-backed, contiguous bus.
 template <umax StageLevel> struct __k9_internal_mblock {BYTE mem[getwidth(StageLevel)];};
 
 
@@ -118,26 +118,27 @@ class State{
 	public:
 		State<StageLevel>() = default;
 		~State<StageLevel>() = default;
-		template <umax lvl>
-		inline State<lvl>& a(umax ind){
-			static_assert(lvl <= StageLevel);
-			return *((State<lvl>*)(mem + byteoff(ind, lvl, StageLevel)));
-		}
+
 		template <typename T>
 		inline void operator=(const T& other){
 			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
 			memcpy(mem, &other, sizeof(T));
 		}
+		template <umax lvl>
+		inline State<lvl>& gs(umax ind){
+			static_assert(lvl <= StageLevel, "Location not large enough to read...");
+			return *((State<lvl>*)(mem + byteoff(ind, lvl, StageLevel)));
+		}
 		template <typename T>
-		inline operator T(){
-			T x;
-			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
-			memcpy(&x, mem, sizeof(T));
-			return x;
+		inline T& g(umax ind){
+			constexpr umax p2n = __k9_ceil_p2n(sizeof(T));
+			static_assert(p2n <= getwidth(StageLevel), "Location not large enough to store...");
+			return *((T*)(mem + byteoff(ind, __k9_log2_ceil(sizeof(T)), StageLevel)));
 		}
 	private:
+		//This memory is always aligned.
 		alignas(
-			(getwidth(StageLevel)>K9_MAX_ALIGNMENT)?
+			(getwidth(StageLevel)  >  K9_MAX_ALIGNMENT)?
 			K9_MAX_ALIGNMENT:
 			getwidth(StageLevel)
 		) BYTE mem[ getwidth(StageLevel) ];
