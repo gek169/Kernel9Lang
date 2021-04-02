@@ -12,16 +12,17 @@
 #include <cstring>
 
 
-//Implementation variables.
-#define K9BLOCKLEVEL	20
-#define K9BLOCKBYTES ((size_t)1<<(K9BLOCKLEVEL - 1))
-#define K9BLOCKMASK (K9BLOCKBYTES - 1)
+
 
 #define K9_FAST_FLOAT_MATH 1
 #define K9_USE_FLOAT 1
 #define K9_USE_DOUBLE 1
 #define K9_USE_LONG_DOUBLE 1
 #define K9_IMPLEMENTATION_BITS 64
+//Implementation default 
+#define K9BLOCKLEVEL	20
+#define K9BLOCKBYTES	(umax)1<<(K9BLOCKLEVEL-1)
+
 
 #if K9_USE_FLOAT
 typedef float f32;
@@ -78,74 +79,58 @@ constexpr umax __k9_max_p2n_inside(umax n){
 	return (umax)1<<__k9_log2_floor(n);
 }
 
-//The Kernel9 basic bus interface
-//Contains an amount of internal memory which is used in different ways depending on mode.
-//Four bits are used, as "flags"
-//PLAIN MODE
-//if the plain flag is set, is_function is ignored.
-//We either store memory directly,  or a pointer to memory owned by other buses, depending on is_owning (bit 1)
-//if the read-only flag is set, writes are ignored.
-//if the "is_wrapped" flag is set, attempts to read beyond the bounds of
-//the allocated memory will loop around to the beginning.
-//FUNCTION MODE
-//Only available if is_plain is 0.
-//
-constexpr bool is_wrapped(umax mode){return (mode & 16) == 1;}
-constexpr bool is_read_only(umax mode){return (mode & 8) == 1;}
-constexpr bool is_function(umax mode){return (mode & 4) == 1;}
-constexpr bool is_plain(umax mode){return (mode & 2) == 1; }
-constexpr bool is_owning(umax mode){return (mode & 1) == 1;}
-
-template <umax StageLevel, umax mode>
-class Kernel9_Bus{
+//The Kernel9 State machine
+template <umax StageLevel>
+class State{
 	static_assert(StageLevel > 0);
-	//static_assert(mode == 0 || mode == 1 || mode == 2 || mode == 3);
+
 	public:
-		/*
-			static constexpr umax is_read_only = mode & 8; //Ignore writes? This is propagated.
-			static constexpr umax is_function = mode & 4; //When writes occur, do we execute a function?
-			static constexpr umax is_plain = mode & 2; //Boring?
-			static constexpr umax is_owning = mode & 1; //Do we own our resorces?
-		*/
-		Kernel9_Bus<StageLevel, mode>(void* dads_data){
-			//TODO: Implement
-		}
-		template <typename T> void copy_bus(T other){
-			//TODO
-		}
-		void __internal_read(BYTE* 	dest, umax sz, umax where){} //TODO
-		void __internal_write(BYTE* src, umax sz, umax where){ if(is_read_only) return;
 		
-		} //TODO
-		//TODO: Implement correct .at<> functionality. That'll be fun...
-		//template < (some calculation for stagelevel), (some calculation for mode)> 
-		//Kernel9_Bus<,> at(){}
-		//
+		State<StageLevel>(){
+			if(StageLevel > K9BLOCKLEVEL)
+				for(size_t i = 0; i < (((umax)1<<(StageLevel-1))/ getwidth(K9BLOCKLEVEL)); i++){
+					((BYTE**)mem)[i] = new BYTE[K9BLOCKLEVEL];
+				}
+		}
+		~State<StageLevel>(){
+			if(StageLevel > K9BLOCKLEVEL)
+				for(size_t i = 0; i < (((umax)1<<(StageLevel-1))/ getwidth(K9BLOCKLEVEL)); i++){
+					delete [] ((BYTE**)mem)[i];
+				}
+		}
+		void operator=(State<StageLevel>& other){
+			if(StageLevel <= K9BLOCKLEVEL){
+				memcpy(mem, other.__internal_get_mem(), getwidth(StageLevel));
+				return;
+			}
+			//Loop over it
+			for(umax i = 0; i < getwidth(StageLevel)/ getwidth(K9BLOCKLEVEL); i++){
+				at<K9BLOCKLEVEL>(i) = other.at<K9BLOCKLEVEL>(i);
+			}
+		}
+		template <umax lvl> State<lvl>& at(umax index){
+			static_assert(lvl < StageLevel);
+			if(StageLevel <= K9BLOCKLEVEL){
+				return *((State<lvl>*)(mem + getwidth(lvl) * (index & getwidth(StageLevel))));
+			}
+			//if StageLevel is greater.
+		}
+		BYTE* __internal_get_mem(){return mem;}
 	private:
-
 		BYTE mem[
-			(is_plain(mode))?
-			(//PLAIN BUSES- Hold memory only.
-				is_owning(mode)? //Owning Memory
-				(
-				   (StageLevel <= K9BLOCKLEVEL)?
-					((umax)1<<(StageLevel-1)): //Small buffer optimization
-					(((umax)1<<(StageLevel-1))/K9BLOCKBYTES) * sizeof(void*) //Block allocation
-				)
-				:
-				(					//Pointer to memory
-					(StageLevel <= K9BLOCKLEVEL)?
-					sizeof(void*): //Points to less than or equal to a single block
-					((((umax)1<<(StageLevel-1))/K9BLOCKBYTES) * sizeof(void*)) //Points to the same number of blocks as if we owned it.
-				)	
-			):(
-
-				
+			(
+			   (StageLevel <= K9BLOCKLEVEL)?
+				getwidth(StageLevel): //Small buffer optimization
+				getwidth(StageLevel)/ getwidth(K9BLOCKLEVEL) * sizeof(BYTE*) //Block allocation
 			)
 		];
 
 
 };
-static_assert(sizeof(Kernel9_Bus<5, 5>) == (1<<(5-1)));
+static_assert(sizeof(State<5>) == (1<<(5-1)));
+static_assert(sizeof(State<1>) == (1<<(1-1)));
+static_assert(sizeof(State<7>) == (1<<(7-1)));
+static_assert(sizeof(State<21>) == 2*sizeof(void*));
+State<30> mystate;
 
 #endif
