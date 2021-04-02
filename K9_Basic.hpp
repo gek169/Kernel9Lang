@@ -111,63 +111,30 @@ constexpr umax __k9_max_p2n_inside(umax n){
 //This is a 100% memory-backed, contiguous bus.
 template <umax StageLevel> struct __k9_internal_mblock {BYTE mem[getwidth(StageLevel)];};
 
-#define K9_NORMAL_BUS_ASSIGN_BEHAVIOR(stagelevel)\
-		template <typename T>\
-		inline void operator=(T& other){\
-			if(stagelevel <= K9BLOCKLEVEL){\
-		   	    st(other.template ld<__k9_internal_mblock<stagelevel>>(0),0);\
-		   	} else {\
-		   		for(umax i = 0; i < getwidth(stagelevel) / K9BLOCKBYTES; i++)\
-		   			st(other.template ld<__k9_internal_mblock<K9BLOCKLEVEL>>(i),i);\
-		   	}\
-		}
-#define K9_BUS_POW2_CHECK()\
-			constexpr umax p2 = __k9_max_p2n_inside(sizeof(T));\
-			constexpr umax p1 = __k9_log2_floor(sizeof(T)) + 1;\
-			static_assert( p2  			== sizeof(T),"KERNEL9 ERROR: LD AND ST MUST TAKE POWER OF TWO BYTES");\
-			static_assert( getwidth(p1)	== sizeof(T),"KERNEL9 ERROR: LD AND ST MUST TAKE POWER OF TWO BYTES");\
 
 template <umax StageLevel>
-class PlainBus{
+class State{
 	static_assert(StageLevel > 0);
 	public:
-		PlainBus<StageLevel>() = default;
-		~PlainBus<StageLevel>() = default;
-		template <typename T> inline T ld(umax index) const {
-			K9_BUS_POW2_CHECK()
-			index &= getmask(p1, StageLevel);
-            if(sizeof(T) <= getwidth(StageLevel)){
-				T var;
-				memcpy(&var,
-						mem  + byteoff(index, p1, StageLevel),
-						sizeof(T)
-					);
-				return var;
-			} else { //Repeat ourselves multiple times into the destination.
-				T var;
-				for(umax i = 0; i < getrelwidth(StageLevel,p1); i++){
-					((__k9_internal_mblock<StageLevel>*)&var)[i] = 
-					ld<__k9_internal_mblock<StageLevel>>(0);
-				}
-				return var;
-			}
+		State<StageLevel>() = default;
+		~State<StageLevel>() = default;
+		template <umax lvl>
+		inline State<lvl>& a(umax ind){
+			static_assert(lvl <= StageLevel);
+			return *((State<lvl>*)(mem + byteoff(ind, lvl, StageLevel)));
 		}
-		template <typename T> inline void st(T e, umax index){
-			K9_BUS_POW2_CHECK()
-			index &= getmask( p1, StageLevel );
-            if(sizeof(T) <= getwidth(StageLevel)){
-				memcpy(mem + byteoff(index, p1, StageLevel), &e, 	sizeof(T));
-			} else {
-			//store the *last* portion of e- behave as if everything were written byte-by-byte.
-				memcpy(mem,
-						((BYTE*)&e) + (getrelwidth(StageLevel,p1) - 1),
-						getwidth(StageLevel)
-					);
-				
-			}
-			return;
+		template <typename T>
+		inline void operator=(const T& other){
+			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
+			memcpy(mem, &other, sizeof(T));
 		}
-		K9_NORMAL_BUS_ASSIGN_BEHAVIOR(StageLevel)
+		template <typename T>
+		inline operator T(){
+			T x;
+			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
+			memcpy(&x, mem, sizeof(T));
+			return x;
+		}
 	private:
 		alignas(
 			(getwidth(StageLevel)>K9_MAX_ALIGNMENT)?
@@ -175,83 +142,9 @@ class PlainBus{
 			getwidth(StageLevel)
 		) BYTE mem[ getwidth(StageLevel) ];
 };
-
-
-
-template <typename T1>
-class EBus{
-	public:
-		EBus<T1>(T1& _u): upper(_u){};
-		template <typename T> inline T ld(umax index){
-			K9_BUS_POW2_CHECK()
-			return upper.template ld<T>(index);
-		}
-		template <typename T> inline void st(T e, umax index){
-			K9_BUS_POW2_CHECK()
-			upper.template st<T>(e, index);
-			return;
-		}
-		template <typename T> inline void operator=(T& other){upper = other;}
-	private:
-		T1& upper;
-};
-
-
-
-
-//Combination bus.
-//Allows you to pass two buses.
-//The resulting address space is getwidth(StageLevel)
-//T1 and T2 should logically be buses of StageLevel-1, but this is not required.
-template <umax StageLevel, typename T1, typename T2>
-class DBus{
-	public:
-		DBus<StageLevel, T1, T2>(T1 _u, T2 _l): upper(_u), lower(_l){};
-		template <typename T> inline T ld(umax index){
-			K9_BUS_POW2_CHECK()
-			if(getwidth(StageLevel) & sizeof(T)){
-				return upper.template ld<T>(index);
-			}
-			return lower.template ld<T>(index);
-		}
-		template <typename T> inline void st(T e, umax index){
-			K9_BUS_POW2_CHECK()
-			if(getwidth(StageLevel) & sizeof(T)){
-				upper.template st<T>(e, index);
-				return;
-			}
-			lower.template st<T>(e, index);
-			return;
-		}
-		K9_NORMAL_BUS_ASSIGN_BEHAVIOR(StageLevel);
-	private:
-		T1 upper;
-		T2 lower;
-};
-
-//Echo Operation.
-template <typename T1>
-inline EBus<T1> echo(T1& a){return EBus<T1>(a);}
-
-
-//Add Buses to create a new bus
-template <umax StageLevel, typename T1, typename T2>
-inline DBus<StageLevel, T1, T2> AddBus(T1 a, T2 b){
-	return DBus<StageLevel, T1, T2>( a, b );
-}
-
-//Merge Buses.
-template <umax StageLevel, typename T1, typename T2>
-inline DBus<StageLevel, EBus<T1>, EBus<T2>> MergeBus(T1& a, T2& b){
-	return AddBus<StageLevel, EBus<T1>, EBus<T2>>( echo(a), echo(b) );
-}
-
-
-static_assert(sizeof(PlainBus<5>) == (1<<(5-1)));
-static_assert(sizeof(PlainBus<1>) == 1);
-static_assert(sizeof(PlainBus<7>) == (1<<(7-1)));
-static_assert(sizeof(PlainBus<21>) == (1<<(21-1)));
-
+//Compiletime unit tests.
+static_assert(sizeof(State<5>) == (umax)1<<(5-1));
+static_assert(sizeof(State<12>) == (umax)1<<(12-1));
 
 
 #endif
