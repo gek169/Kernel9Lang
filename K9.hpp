@@ -23,7 +23,6 @@ static_assert(sizeof(State<4>) == 8);
 DEFKERNEL(k_fmul_s3, 4){
 	var(f32, a, 0)
 	var(f32, b, 1)
-	//g_(f32,0) = g_(f32, 1) * g_(f32, 1);
 	a = a * b;
 	printf("Values inside mul: %f, %f\n" ,a ,b);
 }
