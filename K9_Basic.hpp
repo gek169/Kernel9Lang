@@ -117,7 +117,6 @@ class State{
 	public:
 		State<StageLevel>() = default;
 		~State<StageLevel>() = default;
-
 		template <typename T>
 		inline void operator=(const T& other){
 			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
@@ -132,15 +131,14 @@ class State{
 		inline T& g(umax ind){
 			constexpr umax p2n = __k9_log2_ceil(sizeof(T))+1;
 			static_assert(p2n <= (StageLevel), "Location not large enough to store...");
-			printf("p2n is %zu\n", p2n);
 			return *((T*)(mem + byteoff(ind, p2n, StageLevel)));
 		}
 	private:
 		//This memory is always aligned.
 		alignas(
-			(getwidth(StageLevel)  >  K9_MAX_ALIGNMENT)?
-			K9_MAX_ALIGNMENT:
-			getwidth(StageLevel)
+			(getwidth(StageLevel)  >  K9_MAX_ALIGNMENT)* 
+			K9_MAX_ALIGNMENT +
+			(!(getwidth(StageLevel)  >  K9_MAX_ALIGNMENT)) * getwidth(StageLevel)
 		) BYTE mem[ getwidth(StageLevel) ];
 };
 //Compiletime unit tests.
