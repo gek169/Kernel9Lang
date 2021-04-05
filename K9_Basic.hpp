@@ -10,6 +10,9 @@
 #include <iostream>
 #include <cstring>
 
+#define LOOP(v, e)\
+K8_STATIC_ASSERT(e >= 0);\
+for(unsigned long long v = 0, __k9_internal_##v = 0; __k9_internal_##v < e; __k9_internal_##v++, v = __k9_internal_##v)
 
 
 
