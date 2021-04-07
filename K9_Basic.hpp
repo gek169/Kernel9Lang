@@ -121,21 +121,23 @@ template <umax StageLevel>
 class State{
 	static_assert(StageLevel > 0);
 	public:
-		State<StageLevel>() = default;
+		constexpr State<StageLevel>() = default;
 		~State<StageLevel>() = default;
 		template <typename T>
-		inline void operator=(const T& other){
+		constexpr inline void operator=(const T& other){
 			static_assert(sizeof(T) <= getwidth(StageLevel), "Location not large enough to store...");
 			memcpy(mem, &other, sizeof(T));
 		}
 		template <umax lvl>
-		inline State<lvl>& gs(umax ind){
+		constexpr inline State<lvl>& gs(const umax ind){
 			static_assert(lvl <= StageLevel, "Location not large enough to read...");
+			//static_assert(ind < getrelwidth(lvl, StageLevel), "ERROR: Index out of bounds");
 			return *((State<lvl>*)(mem + byteoff(ind, lvl, StageLevel)));
 		}
 		template <typename T>
-		inline T& g(umax ind){
+		constexpr inline T& g(const umax ind){
 			constexpr umax p2n = __k9_log2_ceil(sizeof(T))+1;
+			//static_assert(ind < getrelwidth(p2n, StageLevel), "ERROR: Index out of bounds");
 			static_assert(p2n <= (StageLevel), "Location not large enough to store...");
 			return *((T*)(mem + byteoff(ind, p2n, StageLevel)));
 		}
